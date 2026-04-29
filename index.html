@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pink UI</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="site">
+      <header>
+        <div class="brand">
+          <div class="brand-badge">P</div>
+          <div>Pink UI</div>
+        </div>
+        <nav>
+          <a href="./index.html">Home</a>
+          <a href="./admin.html">Admin</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div>
+            <h1>Pretty, clean, and consistent.</h1>
+            <p>
+              This page is wired to your provided CSS so the look-and-feel stays exactly the
+              same across the landing and admin views.
+            </p>
+            <div class="hero-actions">
+              <a class="button primary" href="./admin.html">Open Admin</a>
+              <a class="button soft" href="#catalog">View Catalog</a>
+              <a class="button" href="#features">Features</a>
+            </div>
+          </div>
+
+          <div class="hero-card">
+            <div class="badge">Live Metrics</div>
+            <div class="metrics">
+              <div class="metric">
+                <strong>1,248</strong>
+                <div style="color: var(--muted); font-size: 13px; margin-top: 4px">Orders</div>
+              </div>
+              <div class="metric">
+                <strong>$18.2k</strong>
+                <div style="color: var(--muted); font-size: 13px; margin-top: 4px">Revenue</div>
+              </div>
+              <div class="metric">
+                <strong>4.9</strong>
+                <div style="color: var(--muted); font-size: 13px; margin-top: 4px">Rating</div>
+              </div>
+            </div>
+            <div style="margin-top: 14px; color: var(--muted); font-size: 14px; line-height: 1.6">
+              Tip: if you already have existing HTML, I can map your current markup to these
+              class names so the design remains identical.
+            </div>
+          </div>
+        </section>
+
+        <section id="features" class="section">
+          <h2>Features</h2>
+          <div class="cards">
+            <div class="card">
+              <h4>Soft shadows</h4>
+              <p>Card elevation stays consistent across components.</p>
+            </div>
+            <div class="card">
+              <h4>Responsive grid</h4>
+              <p>Auto-fit layout adapts cleanly to smaller screens.</p>
+            </div>
+            <div class="card">
+              <h4>Reusable buttons</h4>
+              <p>Primary/soft variants match the pink theme.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="catalog" class="section">
+          <h2>Catalog</h2>
+          <div class="grid">
+            <article class="product">
+              <img
+                alt="Pink notebook"
+                src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=60"
+              />
+              <div class="content">
+                <div class="badge">New</div>
+                <h4 style="margin: 10px 0 6px">Notebook</h4>
+                <p style="margin: 0; color: var(--muted); line-height: 1.6">
+                  Minimal stationery for focused work.
+                </p>
+              </div>
+            </article>
+
+            <article class="product">
+              <img
+                alt="Pink flowers"
+                src="https://images.unsplash.com/photo-1468327768560-75b778cbb551?auto=format&fit=crop&w=1200&q=60"
+              />
+              <div class="content">
+                <div class="badge">Popular</div>
+                <h4 style="margin: 10px 0 6px">Bouquet</h4>
+                <p style="margin: 0; color: var(--muted); line-height: 1.6">
+                  A soft palette for any occasion.
+                </p>
+              </div>
+            </article>
+
+            <article class="product">
+              <img
+                alt="Pink skincare"
+                src="https://images.unsplash.com/photo-1556228724-4bde173b3fba?auto=format&fit=crop&w=1200&q=60"
+              />
+              <div class="content">
+                <div class="badge">Sale</div>
+                <h4 style="margin: 10px 0 6px">Skincare</h4>
+                <p style="margin: 0; color: var(--muted); line-height: 1.6">
+                  Gentle daily essentials.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <div>© Pink UI — static demo wired to your CSS.</div>
+      </footer>
+    </div>
+  </body>
+</html>

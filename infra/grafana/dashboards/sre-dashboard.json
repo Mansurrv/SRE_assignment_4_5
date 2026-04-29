@@ -1,0 +1,80 @@
+{
+  "uid": "sre-assignment",
+  "title": "SRE Assignment",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["sre", "assignment"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Order Service 5xx (req/s)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(http_requests_total{service=\"order-service\",status=~\"5..\"}[5m])) or vector(0)",
+          "legendFormat": "5xx"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Orders created (2xx, req/s)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(http_requests_total{service=\"order-service\",method=\"POST\",path=\"/orders\",status=~\"2..\"}[5m])) or vector(0)",
+          "legendFormat": "POST /orders 2xx"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Order Service latency p95 (seconds)",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{service=\"order-service\"}[5m])))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      }
+    }
+  ]
+}

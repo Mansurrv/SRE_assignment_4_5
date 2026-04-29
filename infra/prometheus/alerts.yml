@@ -1,0 +1,31 @@
+groups:
+  - name: sre-assignment
+    rules:
+      - alert: OrderServiceHigh5xx
+        expr: sum(rate(http_requests_total{service="order-service",status=~"5.."}[1m])) > 0
+        for: 30s
+        labels:
+          severity: critical
+          service: order-service
+        annotations:
+          summary: "Order Service is returning 5xx"
+          description: "Non-zero 5xx rate detected for order-service (last 1 minute)."
+
+      - alert: OrderServiceDown
+        expr: up{job="order-service"} == 0
+        for: 1m
+        labels:
+          severity: high
+          service: order-service
+        annotations:
+          summary: "Order Service target down"
+          description: "Prometheus cannot scrape order-service (/metrics)."
+
+      - alert: PrometheusTargetMissing
+        expr: count(up{job=~"auth-service|user-service|product-service|order-service"}) < 4
+        for: 2m
+        labels:
+          severity: high
+        annotations:
+          summary: "One or more service targets missing"
+          description: "Expected 4 service scrape targets (auth/user/product/order)."

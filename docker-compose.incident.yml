@@ -1,0 +1,8 @@
+services:
+  # Incident simulation: break Order Service dependency (bad Product Service URL),
+  # while keeping the service running so we get 5xx metrics in Prometheus/Grafana.
+  # Run with:
+  #   docker compose -f docker-compose.yml -f docker-compose.incident.yml up -d --build
+  order-service:
+    environment:
+      PRODUCT_SERVICE_URL: http://product-service-broken:8000

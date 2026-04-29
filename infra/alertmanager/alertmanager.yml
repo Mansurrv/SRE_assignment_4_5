@@ -1,0 +1,12 @@
+route:
+  receiver: "default"
+  group_by: ["alertname", "service"]
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 2h
+
+receivers:
+  # For the assignment we keep it simple: alerts are visible in Alertmanager UI.
+  # You can later add email/slack/webhook here.
+  - name: "default"
+

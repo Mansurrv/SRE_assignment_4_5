@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin • Pink UI</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="site">
+      <header>
+        <div class="brand">
+          <div class="brand-badge">P</div>
+          <div>Pink UI Admin</div>
+        </div>
+        <nav>
+          <a href="./index.html">Home</a>
+          <a href="./admin.html">Admin</a>
+        </nav>
+      </header>
+
+      <main class="admin-layout">
+        <div class="admin-header">
+          <div>
+            <h1 style="margin: 0; font-size: 28px">Dashboard</h1>
+            <div style="color: var(--muted); margin-top: 6px; font-size: 14px">
+              Overview of orders, revenue, and inventory.
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap">
+            <a class="button soft" href="./index.html">Back to site</a>
+            <a class="button primary" href="#new">New Item</a>
+          </div>
+        </div>
+
+        <div class="admin-grid">
+          <aside class="sidebar">
+            <a class="active" href="#overview">Overview</a>
+            <a href="#orders">Orders</a>
+            <a href="#inventory">Inventory</a>
+            <a href="#settings">Settings</a>
+          </aside>
+
+          <section class="dashboard">
+            <div id="overview" class="kpis">
+              <div class="kpi">
+                <div class="badge">Today</div>
+                <h3 style="margin: 10px 0 0">86</h3>
+                <div style="color: var(--muted); font-size: 13px">Orders</div>
+              </div>
+              <div class="kpi">
+                <div class="badge">This week</div>
+                <h3 style="margin: 10px 0 0">$4,920</h3>
+                <div style="color: var(--muted); font-size: 13px">Revenue</div>
+              </div>
+              <div class="kpi">
+                <div class="badge">Health</div>
+                <h3 style="margin: 10px 0 0">99.9%</h3>
+                <div style="color: var(--muted); font-size: 13px">Uptime</div>
+              </div>
+            </div>
+
+            <div id="orders" class="table">
+              <h2 style="margin: 0 0 10px; font-size: 18px">Recent Orders</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Customer</th>
+                    <th>Status</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>#1042</td>
+                    <td>Ana</td>
+                    <td><span class="badge">Paid</span></td>
+                    <td>$58</td>
+                  </tr>
+                  <tr>
+                    <td>#1041</td>
+                    <td>Sam</td>
+                    <td><span class="badge">Fulfilled</span></td>
+                    <td>$132</td>
+                  </tr>
+                  <tr>
+                    <td>#1040</td>
+                    <td>Lee</td>
+                    <td><span class="badge">Pending</span></td>
+                    <td>$41</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div id="new" class="table">
+              <h2 style="margin: 0 0 10px; font-size: 18px">Create Item</h2>
+              <div class="notice">Demo form — wired to styles only (no backend).</div>
+              <form class="form" action="#" method="get">
+                <input name="name" placeholder="Item name" />
+                <input name="sku" placeholder="SKU" />
+                <input name="price" placeholder="Price" />
+                <button class="button primary" type="submit">Save</button>
+              </form>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer>
+        <div>Admin UI — static demo wired to your CSS.</div>
+      </footer>
+    </div>
+  </body>
+</html>

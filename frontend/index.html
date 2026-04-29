@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flower Shop • Microservices</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="site">
+      <header>
+        <div class="brand">
+          <div class="brand-badge">P</div>
+          <div>Flower Shop</div>
+        </div>
+        <nav>
+          <a href="#auth">Auth</a>
+          <a href="#catalog">Products</a>
+          <a href="#orders">Orders</a>
+          <a id="adminLink" class="hidden" href="./admin.html">Admin</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero" id="auth">
+          <div>
+            <h1>Customer & Florist portal</h1>
+            <p>
+              This UI calls `Auth / User / Product / Order` services via Nginx reverse proxy
+              under `/api/...`.
+            </p>
+
+            <div class="hero-card">
+              <div class="badge">Authentication</div>
+              <div class="form" style="margin-top: 10px">
+                <input id="email" placeholder="email" value="" />
+                <input id="fullName" placeholder="full name (register only)" value="" />
+                <input id="password" placeholder="password" value="" type="password" />
+                <select id="role" style="padding: 10px 12px; border-radius: 12px; border: 1px solid var(--stroke); font-size: 14px">
+                  <option value="customer" selected>customer</option>
+                  <option value="florist">florist</option>
+                </select>
+                <div style="display:flex; gap:10px; flex-wrap:wrap">
+                  <button id="btnLogin" class="button primary" type="button">Login</button>
+                  <button id="btnRegister" class="button soft" type="button">Register</button>
+                  <button id="btnLogout" class="button" type="button">Logout</button>
+                </div>
+              </div>
+              <div id="sessionNote" class="notice hidden" style="margin-top: 10px"></div>
+            </div>
+          </div>
+
+          <div class="hero-card" id="catalog">
+            <div class="badge">Products</div>
+            <div class="hero-actions" style="margin-top: 10px">
+              <button id="btnLoadProducts" class="button soft" type="button">Load Products</button>
+              <button id="btnWhoAmI" class="button" type="button">Who am I?</button>
+            </div>
+            <div id="adminProductTools" class="hidden" style="margin-top: 12px">
+              <div class="notice">Florist tools (admin): create / update / delete products.</div>
+              <div class="form" style="margin-top: 10px">
+                <input id="pId" placeholder="product id (update/delete)" />
+                <input id="pSku" placeholder="sku" />
+                <input id="pName" placeholder="name" />
+                <input id="pDesc" placeholder="description" />
+                <input id="pPrice" placeholder="price cents" value="999" />
+                <div style="display:flex; gap:10px; flex-wrap:wrap">
+                  <button id="btnCreateProduct" class="button primary" type="button">Create</button>
+                  <button id="btnUpdateProduct" class="button soft" type="button">Update</button>
+                  <button id="btnDeleteProduct" class="button" type="button">Delete</button>
+                </div>
+              </div>
+              <div id="productAdminResult" style="margin-top: 10px"></div>
+            </div>
+            <div id="productsList" style="margin-top: 12px; display: grid; gap: 10px"></div>
+          </div>
+        </section>
+
+        <section class="section" id="orders">
+          <h2>Orders</h2>
+          <div class="card">
+            <div class="hero-actions" style="margin-top: 0">
+              <button id="btnLoadOrders" class="button soft" type="button">Load Orders</button>
+            </div>
+
+            <div id="customerOrderTools" class="hidden" style="margin-top: 12px">
+              <div class="notice">Customers can place orders.</div>
+              <div class="form" style="margin-top: 10px">
+                <input id="orderProductId" placeholder="product_id (e.g. 1)" value="1" />
+                <input id="orderQty" placeholder="quantity" value="1" />
+                <button id="btnCreateOrder" class="button primary" type="button">Create Order</button>
+              </div>
+              <div id="orderCreateResult" style="margin-top: 12px"></div>
+            </div>
+
+            <div id="ordersList" style="margin-top: 12px; display: grid; gap: 10px"></div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <div>UI • Nginx: `http://localhost:8080`</div>
+      </footer>
+    </div>
+
+    <script>
+      const state = { token: null, subject: null, role: null };
+
+      function show(el, on) {
+        el.classList.toggle("hidden", !on);
+      }
+
+      function setSession(token) {
+        state.token = token;
+        if (token) localStorage.setItem("token", token);
+        else localStorage.removeItem("token");
+        refreshSessionUI();
+      }
+
+      function parseJwt(token) {
+        try {
+          const part = token.split(".")[1];
+          const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+          const json = decodeURIComponent(
+            atob(b64)
+              .split("")
+              .map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+              .join("")
+          );
+          return JSON.parse(json);
+        } catch {
+          return null;
+        }
+      }
+
+      function authHeader() {
+        if (!state.token) return {};
+        return { Authorization: "Bearer " + state.token };
+      }
+
+      function refreshSessionUI() {
+        const note = document.getElementById("sessionNote");
+        const adminLink = document.getElementById("adminLink");
+        const adminTools = document.getElementById("adminProductTools");
+        const customerTools = document.getElementById("customerOrderTools");
+
+        const token = state.token || localStorage.getItem("token");
+        if (!token) {
+          state.token = null;
+          state.subject = null;
+          state.role = null;
+          show(note, false);
+          show(adminLink, false);
+          show(adminTools, false);
+          show(customerTools, false);
+          return;
+        }
+
+        const payload = parseJwt(token);
+        state.token = token;
+        state.subject = (payload && payload.sub) || null;
+        state.role = (payload && payload.role) || null;
+
+        note.textContent = state.subject
+          ? `Logged in as ${state.subject} (${state.role || "unknown role"})`
+          : "Logged in (token stored in localStorage).";
+        show(note, true);
+
+        show(adminLink, state.role === "florist");
+        show(adminTools, state.role === "florist");
+        show(customerTools, state.role === "customer");
+      }
+
+      async function login() {
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
+        const body = new URLSearchParams();
+        body.set("username", email);
+        body.set("password", password);
+
+        const resp = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body,
+        });
+        if (!resp.ok) throw new Error("Login failed: " + resp.status);
+        const data = await resp.json();
+        setSession(data.access_token);
+      }
+
+      async function register() {
+        const email = document.getElementById("email").value.trim();
+        const full_name = document.getElementById("fullName").value.trim();
+        const password = document.getElementById("password").value;
+        const role = document.getElementById("role").value;
+
+        const resp = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, full_name, role }),
+        });
+        const text = await resp.text();
+        if (!resp.ok) throw new Error(`Register failed: ${resp.status} ${text}`);
+        const data = JSON.parse(text);
+        setSession(data.access_token);
+      }
+
+      function logout() {
+        setSession(null);
+      }
+
+      async function whoAmI() {
+        if (!state.token && !localStorage.getItem("token")) throw new Error("Login first");
+        const resp = await fetch("/api/users/me", {
+          headers: authHeader(),
+        });
+        if (!resp.ok) throw new Error("WhoAmI failed: " + resp.status);
+        const me = await resp.json();
+        alert("You are: " + me.email + " (" + me.full_name + "), role=" + me.role);
+      }
+
+      async function loadProducts() {
+        if (!state.token && !localStorage.getItem("token")) throw new Error("Login first");
+        const resp = await fetch("/api/products/products", {
+          headers: authHeader(),
+        });
+        if (!resp.ok) throw new Error("Load products failed: " + resp.status);
+        const products = await resp.json();
+        const wrap = document.getElementById("productsList");
+        wrap.innerHTML = "";
+        for (const p of products) {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <div class="badge">${p.sku}</div>
+            <h4 style="margin:10px 0 6px">${p.name}</h4>
+            <p style="margin:0;color:var(--muted)">${p.description}</p>
+            <p style="margin:8px 0 0"><strong>$${(p.price_cents/100).toFixed(2)}</strong></p>
+          `;
+          wrap.appendChild(card);
+        }
+      }
+
+      async function createProduct() {
+        const sku = document.getElementById("pSku").value.trim();
+        const name = document.getElementById("pName").value.trim();
+        const description = document.getElementById("pDesc").value.trim();
+        const price_cents = parseInt(document.getElementById("pPrice").value, 10);
+        const resp = await fetch("/api/products/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeader() },
+          body: JSON.stringify({ sku, name, description, price_cents }),
+        });
+        const out = document.getElementById("productAdminResult");
+        const text = await resp.text();
+        out.innerHTML = `<pre style="margin:0;white-space:pre-wrap">${text}</pre>`;
+        if (!resp.ok) throw new Error("Create product failed: " + resp.status);
+        await loadProducts();
+      }
+
+      async function updateProduct() {
+        const productId = parseInt(document.getElementById("pId").value, 10);
+        const sku = document.getElementById("pSku").value.trim();
+        const name = document.getElementById("pName").value.trim();
+        const description = document.getElementById("pDesc").value.trim();
+        const price_cents = parseInt(document.getElementById("pPrice").value, 10);
+        const resp = await fetch(`/api/products/products/${productId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...authHeader() },
+          body: JSON.stringify({ sku, name, description, price_cents }),
+        });
+        const out = document.getElementById("productAdminResult");
+        const text = await resp.text();
+        out.innerHTML = `<pre style="margin:0;white-space:pre-wrap">${text}</pre>`;
+        if (!resp.ok) throw new Error("Update product failed: " + resp.status);
+        await loadProducts();
+      }
+
+      async function deleteProduct() {
+        const productId = parseInt(document.getElementById("pId").value, 10);
+        const resp = await fetch(`/api/products/products/${productId}`, {
+          method: "DELETE",
+          headers: authHeader(),
+        });
+        const out = document.getElementById("productAdminResult");
+        const text = await resp.text();
+        out.innerHTML = `<pre style="margin:0;white-space:pre-wrap">${text || "(deleted)"}</pre>`;
+        if (!resp.ok) throw new Error("Delete product failed: " + resp.status);
+        await loadProducts();
+      }
+
+      async function createOrder() {
+        if (!state.token && !localStorage.getItem("token")) throw new Error("Login first");
+        if (!state.subject) refreshSessionUI();
+        const user_id = state.subject;
+        const product_id = parseInt(document.getElementById("orderProductId").value, 10);
+        const quantity = parseInt(document.getElementById("orderQty").value, 10);
+        const resp = await fetch("/api/orders/orders", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeader(),
+          },
+          body: JSON.stringify({ user_id, items: [{ product_id, quantity }] }),
+        });
+        const out = document.getElementById("orderCreateResult");
+        const text = await resp.text();
+        out.innerHTML = `<pre style="margin:0;white-space:pre-wrap">${text}</pre>`;
+        if (!resp.ok) throw new Error("Create order failed: " + resp.status);
+        await loadOrders();
+      }
+
+      async function loadOrders() {
+        if (!state.token && !localStorage.getItem("token")) throw new Error("Login first");
+        const resp = await fetch("/api/orders/orders", { headers: authHeader() });
+        const text = await resp.text();
+        if (!resp.ok) throw new Error(`Load orders failed: ${resp.status} ${text}`);
+        const orders = JSON.parse(text);
+        const wrap = document.getElementById("ordersList");
+        wrap.innerHTML = "";
+        for (const o of orders) {
+          const card = document.createElement("div");
+          card.className = "card";
+          const items = (o.items || [])
+            .map(i => `#${i.product_id} x${i.quantity} = $${(i.line_total_cents / 100).toFixed(2)}`)
+            .join("<br/>");
+          card.innerHTML = `
+            <div class="badge">${o.id}</div>
+            <p style="margin:10px 0 0;color:var(--muted)">${o.user_id}</p>
+            <p style="margin:8px 0 0"><strong>Total: $${(o.total_cents / 100).toFixed(2)}</strong></p>
+            <p style="margin:10px 0 0; color: var(--muted)">${items}</p>
+          `;
+          wrap.appendChild(card);
+        }
+      }
+
+      document.getElementById("btnLogin").addEventListener("click", () => login().catch(e => alert(e.message)));
+      document.getElementById("btnRegister").addEventListener("click", () => register().catch(e => alert(e.message)));
+      document.getElementById("btnLogout").addEventListener("click", () => logout());
+      document.getElementById("btnWhoAmI").addEventListener("click", () => whoAmI().catch(e => alert(e.message)));
+      document.getElementById("btnLoadProducts").addEventListener("click", () => loadProducts().catch(e => alert(e.message)));
+      document.getElementById("btnCreateOrder").addEventListener("click", () => createOrder().catch(e => alert(e.message)));
+      document.getElementById("btnLoadOrders").addEventListener("click", () => loadOrders().catch(e => alert(e.message)));
+
+      document.getElementById("btnCreateProduct").addEventListener("click", () => createProduct().catch(e => alert(e.message)));
+      document.getElementById("btnUpdateProduct").addEventListener("click", () => updateProduct().catch(e => alert(e.message)));
+      document.getElementById("btnDeleteProduct").addEventListener("click", () => deleteProduct().catch(e => alert(e.message)));
+
+      refreshSessionUI();
+    </script>
+  </body>
+</html>
