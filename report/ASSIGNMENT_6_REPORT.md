@@ -34,6 +34,78 @@ Automation and Capacity Planning in a Containerized Microservices System Followi
 
 Контекст инцидента (Assignment 4): `order-service` мог возвращать 5xx из-за misconfiguration, поэтому добавлены readiness/валидации/алерты и сценарии масштабирования.
 
+## 3.1 AWS/Terraform Deployment (Commands Used)
+Ниже приведён реальный end-to-end флоу деплоя на **AWS EC2** через Terraform (Assignment 5) + запуск системы (Assignment 6).
+
+### 3.1.1 Terraform apply (локально)
+```bash
+terraform init
+terraform validate
+terraform plan
+terraform apply -auto-approve
+```
+
+Получить IP/ID инстанса:
+```bash
+terraform output public_ip
+terraform output instance_id
+```
+
+Скриншоты:
+- `report/screenshots/a6-terraform-apply.png` (вывод `terraform apply` с outputs)
+
+### 3.1.2 Подключение по SSH (локально)
+```bash
+ssh -i <PATH_TO_PRIVATE_KEY> ubuntu@<PUBLIC_IP>
+```
+
+Скриншоты:
+- `report/screenshots/a6-ssh-to-vm.png` (успешный SSH login)
+
+### 3.1.3 Bootstrap на VM (через Terraform user_data)
+VM автоматически устанавливает Docker + Compose через `user_data`:
+- `main.tf` → `user_data = file("${path.module}/infra/cloud-init/user_data.sh")`
+- `infra/cloud-init/user_data.sh`
+
+Проверка на VM:
+```bash
+docker --version
+docker compose version
+```
+
+Скриншоты:
+- `report/screenshots/a6-docker-version.png` (docker/compose версии на VM)
+
+### 3.1.4 Загрузка проекта на VM и запуск
+Вариант A (через `scp`, без git):
+```bash
+scp -i <PATH_TO_PRIVATE_KEY> -r . ubuntu@<PUBLIC_IP>:~/sre-assignment
+ssh -i <PATH_TO_PRIVATE_KEY> ubuntu@<PUBLIC_IP>
+cd ~/sre-assignment
+```
+
+Запуск (capacity профиль для cAdvisor + postgres-exporter):
+```bash
+FRONTEND_PORT=80 PROMETHEUS_PORT=9090 GRAFANA_PORT=3000 ALERTMANAGER_PORT=9093 \
+docker compose --profile capacity up -d --build
+docker compose ps
+```
+
+Скриншоты:
+- `report/screenshots/a6-compose-ps-on-vm.png` (`docker compose ps` на VM)
+
+### 3.1.5 Проверка доступности UI и monitoring (из браузера)
+Открыть в браузере (замените `<PUBLIC_IP>`):
+- Frontend: `http://<PUBLIC_IP>/`
+- Grafana: `http://<PUBLIC_IP>:3000` (admin/admin)
+- Prometheus: `http://<PUBLIC_IP>:9090`
+- Alertmanager: `http://<PUBLIC_IP>:9093`
+
+Скриншоты:
+- `report/screenshots/a6-grafana-ui.png`
+- `report/screenshots/a6-prometheus-ui.png`
+- `report/screenshots/a6-alertmanager-ui.png`
+
 ## 4. Automation in SRE
 
 ### 4.1 Objective
@@ -48,8 +120,9 @@ Automation and Capacity Planning in a Containerized Microservices System Followi
 - Стандартизированные конфиги через `.env` (пример: `.env.example`)
 
 Доказательства (скриншоты):
-- `report/screenshots/a6-compose-up.png` (команда `docker compose up -d --build` + `docker compose ps`)
-- `report/screenshots/a6-terraform-user-data.png` (фрагмент TF apply/конфиг или файл `user_data` на VM)
+- `report/screenshots/a6-terraform-apply.png` (Terraform apply + outputs)
+- `report/screenshots/a6-docker-version.png` (Docker/Compose versions on VM)
+- `report/screenshots/a6-compose-ps-on-vm.png` (`docker compose ps` on VM)
 
 #### 4.2.2 Health Checks and Self-Healing
 Реализация:
@@ -60,8 +133,8 @@ Automation and Capacity Planning in a Containerized Microservices System Followi
 - Restart policy включен: `restart: unless-stopped` (self-healing через automatic restart).
 
 Доказательства (скриншоты):
-- `report/screenshots/a6-ready-endpoints.png` (curl `/ready` для сервисов)
-- `report/screenshots/a6-compose-healthy.png` (`docker compose ps` показывает `healthy`)
+- `report/screenshots/a6-ready-endpoints.png` (curl `/ready` на VM для сервисов)
+- `report/screenshots/a6-compose-healthy.png` (`docker compose ps` показывает `healthy` на VM)
 
 #### 4.2.3 Monitoring-Based Alerting
 Реализация:
@@ -76,7 +149,7 @@ Automation and Capacity Planning in a Containerized Microservices System Followi
 
 Доказательства (скриншоты):
 - `report/screenshots/a6-prometheus-targets.png` (Prometheus → Targets: UP)
-- `report/screenshots/a6-alertmanager.png` (Alertmanager UI: alerts visible / firing)
+- `report/screenshots/a6-alertmanager-ui.png` (Alertmanager UI: alerts visible / firing)
 
 #### 4.2.4 Log-Based Troubleshooting Automation
 Реализация:
@@ -118,7 +191,7 @@ Automation and Capacity Planning in a Containerized Microservices System Followi
 
 Команда (пример):
 ```bash
-python3 scripts/load_test_orders.py --base-url http://localhost:8080 --concurrency 20 --duration 60
+python3 scripts/load_test_orders.py --base-url http://<PUBLIC_IP> --concurrency 20 --duration 60
 ```
 
 Доказательства (скриншоты):
@@ -144,7 +217,7 @@ python3 scripts/load_test_orders.py --base-url http://localhost:8080 --concurren
 
 Быстрый снимок ключевых метрик (instant queries):
 ```bash
-PROM_URL=http://localhost:9090 scripts/capacity_snapshot.sh
+PROM_URL=http://<PUBLIC_IP>:9090 scripts/capacity_snapshot.sh
 ```
 
 Скриншоты:
@@ -207,4 +280,3 @@ PROM_URL=http://localhost:9090 scripts/capacity_snapshot.sh
 
 ## PDF export
 Откройте `report/ASSIGNMENT_6_REPORT.md` и сделайте **Print → Save as PDF**.
-
