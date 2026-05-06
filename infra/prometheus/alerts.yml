@@ -1,6 +1,15 @@
 groups:
   - name: sre-assignment
     rules:
+      - alert: ServiceHigh5xx
+        expr: sum by (service) (rate(http_requests_total{service=~"auth-service|user-service|product-service|order-service",status=~"5.."}[1m])) > 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service is returning 5xx"
+          description: "Non-zero 5xx rate detected for {{ $labels.service }} (last 1 minute)."
+
       - alert: OrderServiceHigh5xx
         expr: sum(rate(http_requests_total{service="order-service",status=~"5.."}[1m])) > 0
         for: 30s
@@ -29,3 +38,100 @@ groups:
         annotations:
           summary: "One or more service targets missing"
           description: "Expected 4 service scrape targets (auth/user/product/order)."
+
+      - alert: PostgresDown
+        expr: (up{job="postgres"} == 0) and on() (up{job="cadvisor"} == 1)
+        for: 1m
+        labels:
+          severity: critical
+          service: postgres
+        annotations:
+          summary: "PostgreSQL target down"
+          description: "Prometheus cannot scrape postgres-exporter while capacity profile is enabled."
+
+      - alert: AuthServiceDown
+        expr: up{job="auth-service"} == 0
+        for: 1m
+        labels:
+          severity: high
+          service: auth-service
+        annotations:
+          summary: "Auth Service target down"
+          description: "Prometheus cannot scrape auth-service (/metrics)."
+
+      - alert: UserServiceDown
+        expr: up{job="user-service"} == 0
+        for: 1m
+        labels:
+          severity: high
+          service: user-service
+        annotations:
+          summary: "User Service target down"
+          description: "Prometheus cannot scrape user-service (/metrics)."
+
+      - alert: ProductServiceDown
+        expr: up{job="product-service"} == 0
+        for: 1m
+        labels:
+          severity: high
+          service: product-service
+        annotations:
+          summary: "Product Service target down"
+          description: "Prometheus cannot scrape product-service (/metrics)."
+
+      - alert: OrderServiceRestarts
+        expr: changes(container_start_time_seconds{container_label_com_docker_compose_service="order-service",image!=""}[10m]) > 0
+        for: 0m
+        labels:
+          severity: high
+          service: order-service
+        annotations:
+          summary: "Order Service container restarted"
+          description: "Order Service container start_time changed in the last 10 minutes (requires cAdvisor)."
+
+      - alert: OrderServiceHighCPU
+        expr: sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service="order-service",image!=""}[2m])) > 0.8
+        for: 2m
+        labels:
+          severity: warning
+          service: order-service
+        annotations:
+          summary: "Order Service high CPU"
+          description: "Order Service using >0.8 CPU cores sustained (requires cAdvisor)."
+
+      - alert: OrderServiceHighMemory
+        expr: max(container_memory_working_set_bytes{container_label_com_docker_compose_service="order-service",image!=""}) > 300000000
+        for: 2m
+        labels:
+          severity: warning
+          service: order-service
+        annotations:
+          summary: "Order Service high memory"
+          description: "Order Service memory working set >300MB sustained (requires cAdvisor)."
+
+      - alert: AnyServiceHighCPU
+        expr: max by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service=~"auth-service|user-service|product-service|order-service",image!=""}[2m])) > 0.8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "{{ $labels.container_label_com_docker_compose_service }} using >0.8 CPU cores sustained (requires cAdvisor)."
+
+      - alert: AnyServiceHighMemory
+        expr: max by (container_label_com_docker_compose_service) (container_memory_working_set_bytes{container_label_com_docker_compose_service=~"auth-service|user-service|product-service|order-service",image!=""}) > 300000000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "{{ $labels.container_label_com_docker_compose_service }} memory working set >300MB sustained (requires cAdvisor)."
+
+      - alert: AnyServiceRestartLoop
+        expr: changes(container_start_time_seconds{container_label_com_docker_compose_service=~"auth-service|user-service|product-service|order-service",image!=""}[10m]) >= 2
+        for: 0m
+        labels:
+          severity: high
+        annotations:
+          summary: "Service restarting frequently"
+          description: "{{ $labels.container_label_com_docker_compose_service }} restarted >=2 times in the last 10 minutes (requires cAdvisor)."

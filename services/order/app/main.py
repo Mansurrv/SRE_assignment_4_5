@@ -128,6 +128,27 @@ def _ensure_schema() -> None:
 def health() -> dict[str, str]:
   return {"status": "ok"}
 
+@app.get("/ready")
+def ready() -> dict[str, str]:
+  try:
+    with db_conn() as conn, conn.cursor() as cur:
+      cur.execute("SELECT 1")
+      cur.fetchone()
+  except Exception as exc:
+    raise HTTPException(status_code=503, detail="Database not ready") from exc
+
+  try:
+    requests.get(f"{PRODUCT_SERVICE_URL}/health", timeout=2).raise_for_status()
+  except Exception as exc:
+    raise HTTPException(status_code=503, detail="Product service not ready") from exc
+
+  try:
+    requests.get(f"{USER_SERVICE_URL}/health", timeout=2).raise_for_status()
+  except Exception as exc:
+    raise HTTPException(status_code=503, detail="User service not ready") from exc
+
+  return {"status": "ready"}
+
 
 def _get_product_price_cents(*, product_id: int, bearer_token: str) -> int:
   # Demonstrates inter-service HTTP: order -> product

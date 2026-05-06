@@ -102,6 +102,7 @@ resource "aws_instance" "vm" {
   vpc_security_group_ids      = [aws_security_group.vm.id]
   associate_public_ip_address = true
   key_name                    = aws_key_pair.ssh.key_name
+  user_data                   = file("${path.module}/infra/cloud-init/user_data.sh")
 
   tags = {
     Name       = "${var.project_name}-vm"
@@ -110,4 +111,3 @@ resource "aws_instance" "vm" {
     Assignment = "5"
   }
 }
-

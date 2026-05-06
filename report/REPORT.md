@@ -171,6 +171,55 @@ Misconfiguration in Order Service (wrong dependency host/URL), leading to 5xx on
 
 Коротко опишите, что было сделано: IaC (Terraform), деплой Docker Compose, observability (Prometheus/Grafana), alerting (Alertmanager), инцидент + response + postmortem.
 
+## 13) Automation and Capacity Planning (Assignment 6)
+
+### 13.1 Automation mechanisms implemented
+Система запускается воспроизводимо через `docker-compose.yml` + `.env`, VM поднимается Terraform и автоматически ставит Docker/Compose через `user_data`, сервисы имеют `/health` (liveness) и `/ready` (readiness), контейнеры самовосстанавливаются через `restart: unless-stopped`, а перед деплоем выполняются проверки конфигурации и быстрый анализ логов.
+
+Скриншоты:
+- `report/screenshots/compose-up-healthy.png` (containers healthy in `docker compose ps`)
+- `report/screenshots/ready-endpoints.png` (curl `/ready` for all services OR browser tab with /health checks)
+
+### 13.2 Monitoring-based alerting
+Prometheus собирает метрики сервисов и контейнеров и по правилам в `infra/prometheus/alerts.yml` формирует алерты (downtime/5xx/CPU/memory/restarts), которые видны в Alertmanager.
+
+Скриншоты:
+- `report/screenshots/prometheus-targets-up.png` (Prometheus → Status → Targets: all UP)
+- `report/screenshots/alertmanager-active.png` (Alertmanager UI with active/firing alerts or ready state)
+
+### 13.3 Load simulation
+Нагрузка генерируется скриптом `scripts/load_test_orders.py`, который параллельно создаёт заказы и печатает RPS/latency/error rate.
+
+Скриншоты:
+- `report/screenshots/load-test-terminal.png` (terminal output of the load test command)
+
+### 13.4 Capacity analysis (template)
+Во время нагрузки метрики CPU/Memory/RPS/5xx/restarts фиксируются в Grafana/Prometheus, после чего делается вывод о предельной пропускной способности и узком месте (обычно `order-service` и/или PostgreSQL).
+
+Данные (заполнить по результатам):
+- Max sustainable RPS: **<value>**
+- p95 latency under load: **<value>**
+- Bottleneck: **<Order Service / DB / network>**
+
+Скриншоты:
+- `report/screenshots/grafana-under-load.png` (Grafana dashboard under load)
+- `report/screenshots/capacity-snapshot.png` (terminal output of `scripts/capacity_snapshot.sh` OR Prometheus query results)
+
+### 13.5 Scaling strategy (proposal)
+Для роста нагрузки предлагается горизонтально масштабировать `order-service` (несколько реплик), вертикально увеличить ресурсы VM через Terraform (instance type), а также оптимизировать БД (пулы соединений/индексы/настройки) при выявлении bottleneck.
+
+Скриншоты:
+- `report/screenshots/scale-order-service.png` (output of `docker compose up -d --scale order-service=2` + `docker compose ps`)
+
+### 13.6 Evidence (screenshots)
+Минимально для сдачи:
+- `report/screenshots/grafana-under-load.png` (mandatory)
+- `report/screenshots/recovery-after-failure.png` (mandatory: контейнер восстановился после restart)
+
+Дополнительно (по желанию/если требуется преподавателем):
+- `report/screenshots/prometheus-alerts.png`
+- `report/screenshots/alertmanager-firing.png`
+
 ## PDF export
 
 Откройте `report/REPORT.md` и сделайте **Print → Save as PDF**.

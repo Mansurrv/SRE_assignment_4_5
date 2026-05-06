@@ -91,6 +91,16 @@ def metrics() -> Response:
 def health() -> dict[str, str]:
   return {"status": "ok"}
 
+@app.get("/ready")
+def ready() -> dict[str, str]:
+  try:
+    with db_conn() as conn, conn.cursor() as cur:
+      cur.execute("SELECT 1")
+      cur.fetchone()
+  except Exception as exc:
+    raise HTTPException(status_code=503, detail="Database not ready") from exc
+  return {"status": "ready"}
+
 
 @app.get("/products", response_model=list[Product])
 def list_products(identity: Annotated[tuple[str, str], Depends(require_subject)]) -> list[Product]:

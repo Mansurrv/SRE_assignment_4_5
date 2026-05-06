@@ -114,6 +114,16 @@ def _ensure_schema() -> None:
 def health() -> dict[str, str]:
   return {"status": "ok"}
 
+@app.get("/ready")
+def ready() -> dict[str, str]:
+  try:
+    with db_conn() as conn, conn.cursor() as cur:
+      cur.execute("SELECT 1")
+      cur.fetchone()
+  except Exception as exc:
+    raise HTTPException(status_code=503, detail="Database not ready") from exc
+  return {"status": "ready"}
+
 
 @app.post("/login", response_model=TokenResponse)
 def login(form: OAuth2PasswordRequestForm = Depends()) -> TokenResponse:
