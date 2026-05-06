@@ -1,0 +1,7 @@
+services:
+  # Allow horizontal scaling by removing fixed host-port publishing.
+  # Frontend (nginx) and other services reach order-service via Docker DNS
+  # on the internal network, so publishing 8004:8000 is unnecessary for scaling.
+  order-service:
+    ports: []
+

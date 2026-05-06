@@ -1,8 +1,8 @@
 # Assignment 6 — Automation in Site Reliability Engineering and Capacity Planning
 
-Дата: **заполните**  
+Дата: **2026-05-06**  
 Автор: **заполните**  
-Часовой пояс: **например Asia/Almaty**  
+Часовой пояс: **Asia/Almaty**  
 
 ## 1. Title
 Automation and Capacity Planning in a Containerized Microservices System Following Incident Response and Infrastructure Provisioning
@@ -73,12 +73,18 @@ docker --version
 docker compose version
 ```
 
+Примечание (важно): если `docker --version` выводит `Emulate Docker CLI using podman`, значит на VM установлен Podman docker-shim и команда `docker compose ...` не будет работать корректно. В этом случае нужно обновить bootstrap (`infra/cloud-init/user_data.sh`) чтобы ставился Docker Engine + Compose v2 из Docker apt repo (и удалялся `podman-docker`).
+
 Скриншоты:
 - `report/screenshots/a6-docker-version.png` (docker/compose версии на VM)
 
 ### 3.1.4 Загрузка проекта на VM и запуск
 Вариант A (через `scp`, без git):
 ```bash
+# NOTE: перед копированием удалите `.terraform/`, иначе `scp -r .` может тащить
+# большой бинарник провайдера (например, terraform-provider-aws на сотни MB).
+rm -rf .terraform
+
 scp -i <PATH_TO_PRIVATE_KEY> -r . ubuntu@<PUBLIC_IP>:~/sre-assignment
 ssh -i <PATH_TO_PRIVATE_KEY> ubuntu@<PUBLIC_IP>
 cd ~/sre-assignment
@@ -89,6 +95,26 @@ cd ~/sre-assignment
 FRONTEND_PORT=80 PROMETHEUS_PORT=9090 GRAFANA_PORT=3000 ALERTMANAGER_PORT=9093 \
 docker compose --profile capacity up -d --build
 docker compose ps
+```
+
+Примечание (важно): первый `--build` на новой VM может выполняться долго на шаге `RUN pip install -r requirements.txt` (скачивание/установка Python-зависимостей). Это нормально и зависит от:
+- скорости сети/доступа к PyPI (DNS/retries),
+- CPU/RAM/диска VM (на маленьких instance build заметно медленнее),
+- параллельной сборки нескольких сервисов (одновременные `pip install` могут забивать сеть/диск).
+
+Примечание (важно): если root диск слишком маленький (например, ~8GB по умолчанию), сборка Docker-образов может падать с ошибкой:
+`no space left on device` (часто в `/var/lib/containerd/...` при unpack/export слоёв).  
+Решение: увеличить root EBS volume в Terraform (например, до 20–30GB):
+- `variables.tf` → `root_volume_size_gb`
+- `main.tf` → `root_block_device { volume_size = var.root_volume_size_gb }`
+
+Для диагностики включите подробный прогресс:
+```bash
+docker compose --profile capacity build --progress=plain
+```
+Если нужно “успокоить” VM — ограничьте параллелизм сборки:
+```bash
+COMPOSE_PARALLEL_LIMIT=1 docker compose --profile capacity up -d --build
 ```
 
 Скриншоты:
@@ -224,18 +250,42 @@ PROM_URL=http://<PUBLIC_IP>:9090 scripts/capacity_snapshot.sh
 - `report/screenshots/a6-capacity-snapshot.png` (вывод `scripts/capacity_snapshot.sh`)
 
 ### 5.6 Scaling Strategies
-1) Horizontal Scaling:
-   - Scale replicas for `order-service`: `docker compose up -d --scale order-service=2`
-   - Load balancing: Nginx + Docker DNS (при наличии нескольких A records)
-2) Vertical Scaling:
-   - Увеличить CPU/RAM контейнеров / VM, например изменить `var.instance_type` в Terraform.
-3) Database Optimization:
-   - Connection pooling (PgBouncer) (optional)
-   - Query optimization / indexes (если выявлено)
-   - Resource tuning for Postgres (shared_buffers, max_connections, etc.) (optional)
+1) Horizontal Scaling (Compose replicas)
+   - Проблема: если сервис публикует фиксированный host-port (например `8004:8000`), то `docker compose up --scale order-service=3` упадёт с ошибкой `port is already allocated` (каждой реплике нужен уникальный host-port).
+   - Решение в этом проекте: для масштабирования **убираем публикацию порта** у `order-service` и обращаемся к нему через `frontend` (Nginx) по внутренней сети Docker.
+   - Команды:
+     ```bash
+     # старт с возможностью масштабирования order-service (без host-port 8004)
+     docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --build
+
+     # масштабирование реплик
+     docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --scale order-service=3
+
+     # проверка
+     docker compose ps
+     ```
+   - Доступ/балансировка:
+     - Внешний вход: `http://<PUBLIC_IP>/api/orders/...` (Nginx проксирует на `http://order-service:8000`)
+     - Nginx резолвит `order-service` через Docker DNS (`127.0.0.11`). При нескольких репликах Docker DNS отдаёт несколько A-records, и Nginx (через `resolver ... valid=5s` + variable `proxy_pass`) выбирает один из адресов.
+     - Важно: это простой round-robin через DNS (не полноценный L7 balancer с sticky sessions и health-aware routing).
+
+2) Vertical Scaling (bigger EC2 / more resources)
+   - В Terraform увеличить размер инстанса:
+     - `variables.tf` → `variable "instance_type"` (например, `t3.micro` → `t3.small` / `t3.medium` / `m6i.large`)
+     - применить: `terraform apply -auto-approve`
+   - Практика для capacity: burstable `t3.*` могут “лагать” под длительной нагрузкой из-за CPU credits; для стабильной нагрузки лучше `m*`/`c*` классы.
+   - (Опционально) увеличить диск для сборок/логов: `variables.tf` → `root_volume_size_gb`.
+
+3) Database Optimization (Postgres bottleneck mitigation)
+   - Connection pooling (PgBouncer) — добавить отдельный контейнер и направить `DATABASE_URL` сервисов в pooler (уменьшает overhead на `max_connections`).
+   - Query optimization / indexes:
+     - собрать slow queries (Postgres logs / `EXPLAIN ANALYZE`)
+     - добавить индексы по “горячим” WHERE/JOIN полям (например для `orders`, `users`, `products` — по фактическому профилю нагрузки).
+   - Resource tuning:
+     - увеличить ресурсы VM (vertical scaling) и/или настроить Postgres параметры (если разрешено рамками задания).
 
 Скриншоты:
-- `report/screenshots/a6-scale-order-service.png` (`--scale order-service=2` + `docker compose ps`)
+- `report/screenshots/a6-scale-order-service.png` (`docker compose -f docker-compose.yml -f docker-compose.scale.yml up -d --scale order-service=2` + `docker compose ps`)
 
 ### 5.7 Auto-Scaling Considerations
 Хотя auto-scaling не реализован полностью в Docker Compose, предлагается:

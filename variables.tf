@@ -16,6 +16,12 @@ variable "instance_type" {
   default     = "t3.micro"
 }
 
+variable "root_volume_size_gb" {
+  type        = number
+  description = "Root EBS volume size in GiB. Increase to avoid 'no space left on device' during docker builds."
+  default     = 30
+}
+
 variable "ssh_key_name" {
   type        = string
   description = "Name of the EC2 key pair to create/use."
@@ -32,4 +38,3 @@ variable "ssh_ingress_cidrs" {
   description = "CIDRs allowed to SSH (22) into the VM."
   default     = ["0.0.0.0/0"]
 }
-

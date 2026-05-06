@@ -104,6 +104,11 @@ resource "aws_instance" "vm" {
   key_name                    = aws_key_pair.ssh.key_name
   user_data                   = file("${path.module}/infra/cloud-init/user_data.sh")
 
+  root_block_device {
+    volume_size = var.root_volume_size_gb
+    volume_type = "gp3"
+  }
+
   tags = {
     Name       = "${var.project_name}-vm"
     Project    = var.project_name
