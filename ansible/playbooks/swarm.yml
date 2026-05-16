@@ -1,0 +1,91 @@
+---
+- name: Install Docker (Swarm nodes)
+  hosts: swarm_manager:swarm_workers
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        update_cache: true
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+
+    - name: Add Docker GPG key
+      ansible.builtin.shell: |
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        chmod a+r /etc/apt/keyrings/docker.gpg
+      args:
+        creates: /etc/apt/keyrings/docker.gpg
+
+    - name: Add Docker repository
+      ansible.builtin.shell: |
+        echo \
+          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+          $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable" > /etc/apt/sources.list.d/docker.list
+      args:
+        creates: /etc/apt/sources.list.d/docker.list
+
+    - name: Install Docker engine and Compose plugin
+      ansible.builtin.apt:
+        update_cache: true
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+- name: Init Swarm manager
+  hosts: swarm_manager
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Ensure repo directory exists
+      ansible.builtin.file:
+        path: "{{ repo_path }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy project to manager
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../"
+        dest: "{{ repo_path }}/"
+        owner: root
+        group: root
+        mode: preserve
+
+    - name: Initialize Swarm (idempotent)
+      ansible.builtin.shell: |
+        docker swarm init || true
+      changed_when: false
+
+    - name: Get join token
+      ansible.builtin.command: docker swarm join-token -q worker
+      register: swarm_worker_token
+
+    - name: Get manager advertise address
+      ansible.builtin.set_fact:
+        swarm_manager_addr: "{{ hostvars[inventory_hostname].ansible_host | default(inventory_hostname) }}"
+
+    - name: Deploy stack
+      ansible.builtin.command: docker stack deploy -c swarm/docker-stack.yml app
+      args:
+        chdir: "{{ repo_path }}"
+
+- name: Join Swarm workers
+  hosts: swarm_workers
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Join swarm (best-effort)
+      ansible.builtin.shell: |
+        docker swarm join --token {{ hostvars[groups['swarm_manager'][0]].swarm_worker_token.stdout }} {{ hostvars[groups['swarm_manager'][0]].swarm_manager_addr }}:2377 || true
+      changed_when: false

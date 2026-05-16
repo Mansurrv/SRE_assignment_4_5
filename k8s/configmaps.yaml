@@ -1,0 +1,414 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+data:
+  default.conf: |
+    server {
+      listen 80;
+
+      location / {
+        root /usr/share/nginx/html;
+        try_files $uri /index.html;
+      }
+
+      location /api/auth/ {
+        rewrite ^/api/auth/(.*)$ /$1 break;
+        proxy_pass http://auth-service:8000;
+      }
+
+      location /api/users/ {
+        rewrite ^/api/users/(.*)$ /$1 break;
+        proxy_pass http://user-service:8000;
+      }
+
+      location /api/products/ {
+        rewrite ^/api/products/(.*)$ /$1 break;
+        proxy_pass http://product-service:8000;
+      }
+
+      location /api/orders/ {
+        rewrite ^/api/orders/(.*)$ /$1 break;
+        proxy_pass http://order-service:8000;
+      }
+
+      location /api/payments/ {
+        rewrite ^/api/payments/(.*)$ /$1 break;
+        proxy_pass http://payment-service:8000;
+      }
+
+      location /api/notifications/ {
+        rewrite ^/api/notifications/(.*)$ /$1 break;
+        proxy_pass http://notification-service:8000;
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+data:
+  init.sql: |
+    -- Copied from infra/postgres/init.sql for Kubernetes usage
+    CREATE TABLE IF NOT EXISTS products (
+      id SERIAL PRIMARY KEY,
+      sku TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      price_cents INTEGER NOT NULL CHECK (price_cents >= 0)
+    );
+
+    INSERT INTO products (sku, name, description, price_cents) VALUES
+      ('roses-red', 'Red Roses', 'Bouquet of fresh red roses', 1999),
+      ('tulips-yellow', 'Yellow Tulips', 'Bright yellow tulips for any occasion', 1499),
+      ('lilies-white', 'White Lilies', 'Elegant white lilies', 1799)
+    ON CONFLICT (sku) DO NOTHING;
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-conf
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    rule_files:
+      - /etc/prometheus/alerts.yml
+
+    scrape_configs:
+      - job_name: "prometheus"
+        static_configs:
+          - targets: ["localhost:9090"]
+
+      - job_name: "auth-service"
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["auth-service:8000"]
+
+      - job_name: "user-service"
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["user-service:8000"]
+
+      - job_name: "product-service"
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["product-service:8000"]
+
+      - job_name: "order-service"
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["order-service:8000"]
+
+      - job_name: "payment-service"
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["payment-service:8000"]
+
+      - job_name: "notification-service"
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["notification-service:8000"]
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ["alertmanager:9093"]
+
+  alerts.yml: |
+    groups:
+      - name: sre-app
+        rules:
+          - alert: ServiceHigh5xx
+            expr: sum by (service) (rate(http_requests_total{service=~"auth-service|user-service|product-service|order-service|payment-service|notification-service",status=~"5.."}[1m])) > 0
+            for: 30s
+            labels:
+              severity: critical
+            annotations:
+              summary: "Service is returning 5xx"
+              description: "Non-zero 5xx rate detected for {{ $labels.service }} (last 1 minute)."
+
+          - alert: OrderServiceHigh5xx
+            expr: sum(rate(http_requests_total{service="order-service",status=~"5.."}[1m])) > 0
+            for: 30s
+            labels:
+              severity: critical
+              service: order-service
+            annotations:
+              summary: "Order Service is returning 5xx"
+              description: "Non-zero 5xx rate detected for order-service (last 1 minute)."
+
+          - alert: ServiceDown
+            expr: up{job=~"auth-service|user-service|product-service|order-service|payment-service|notification-service"} == 0
+            for: 1m
+            labels:
+              severity: high
+            annotations:
+              summary: "Service target down"
+              description: "Prometheus cannot scrape {{ $labels.job }} (/metrics)."
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-conf
+data:
+  alertmanager.yml: |
+    route:
+      receiver: "default"
+      group_by: ["alertname", "service"]
+      group_wait: 10s
+      group_interval: 30s
+      repeat_interval: 2h
+
+    receivers:
+      - name: "default"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+data:
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /etc/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+data:
+  sre-dashboard.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "target": {
+              "limit": 100,
+              "matchAny": false,
+              "tags": [],
+              "type": "dashboard"
+            },
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "SRE dashboard for order-service (latency, errors, throughput).",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum(increase(http_requests_total{service=\"order-service\",status=~\"5..\"}[5m])) or vector(0)",
+              "interval": "",
+              "legendFormat": "5xx (5m)",
+              "refId": "A"
+            }
+          ],
+          "title": "Order Service 5xx (5m)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 0
+          },
+          "id": 2,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum(increase(http_requests_total{service=\"order-service\",method=\"POST\",path=\"/orders\",status=~\"2..\"}[5m])) or vector(0)",
+              "interval": "",
+              "legendFormat": "2xx POST /orders (5m)",
+              "refId": "A"
+            }
+          ],
+          "title": "Order creates (2xx, 5m)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 0
+          },
+          "id": 3,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{service=\"order-service\"}[5m])))",
+              "interval": "",
+              "legendFormat": "p95 (5m)",
+              "refId": "A"
+            }
+          ],
+          "title": "Order Service latency p95",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": [
+        "sre"
+      ],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-30m",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "SRE Dashboard",
+      "uid": "sre-dashboard",
+      "version": 1,
+      "weekStart": ""
+    }

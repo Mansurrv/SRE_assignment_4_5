@@ -45,6 +45,8 @@ def main() -> int:
     "JWT_ISSUER",
     "PRODUCT_SERVICE_URL",
     "USER_SERVICE_URL",
+    "PAYMENT_SERVICE_URL",
+    "NOTIFICATION_SERVICE_URL",
   ]
 
   problems: list[Problem] = []
@@ -66,7 +68,7 @@ def main() -> int:
   if database_url and not database_url.startswith("postgresql://"):
     problems.append(Problem(key="DATABASE_URL", message="must start with postgresql://"))
 
-  for key in ("PRODUCT_SERVICE_URL", "USER_SERVICE_URL"):
+  for key in ("PRODUCT_SERVICE_URL", "USER_SERVICE_URL", "PAYMENT_SERVICE_URL", "NOTIFICATION_SERVICE_URL"):
     raw = _get_env(key, dotenv) or ""
     if not raw:
       continue

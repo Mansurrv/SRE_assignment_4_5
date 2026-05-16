@@ -2,7 +2,7 @@ groups:
   - name: sre-assignment
     rules:
       - alert: ServiceHigh5xx
-        expr: sum by (service) (rate(http_requests_total{service=~"auth-service|user-service|product-service|order-service",status=~"5.."}[1m])) > 0
+        expr: sum by (service) (rate(http_requests_total{service=~"auth-service|user-service|product-service|order-service|payment-service|notification-service",status=~"5.."}[1m])) > 0
         for: 30s
         labels:
           severity: critical
@@ -31,13 +31,13 @@ groups:
           description: "Prometheus cannot scrape order-service (/metrics)."
 
       - alert: PrometheusTargetMissing
-        expr: count(up{job=~"auth-service|user-service|product-service|order-service"}) < 4
+        expr: count(up{job=~"auth-service|user-service|product-service|order-service|payment-service|notification-service"}) < 6
         for: 2m
         labels:
           severity: high
         annotations:
           summary: "One or more service targets missing"
-          description: "Expected 4 service scrape targets (auth/user/product/order)."
+          description: "Expected 6 service scrape targets (auth/user/product/order/payment/notification)."
 
       - alert: PostgresDown
         expr: (up{job="postgres"} == 0) and on() (up{job="cadvisor"} == 1)
@@ -110,7 +110,7 @@ groups:
           description: "Order Service memory working set >300MB sustained (requires cAdvisor)."
 
       - alert: AnyServiceHighCPU
-        expr: max by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service=~"auth-service|user-service|product-service|order-service",image!=""}[2m])) > 0.8
+        expr: max by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service=~"auth-service|user-service|product-service|order-service|payment-service|notification-service",image!=""}[2m])) > 0.8
         for: 2m
         labels:
           severity: warning
@@ -119,7 +119,7 @@ groups:
           description: "{{ $labels.container_label_com_docker_compose_service }} using >0.8 CPU cores sustained (requires cAdvisor)."
 
       - alert: AnyServiceHighMemory
-        expr: max by (container_label_com_docker_compose_service) (container_memory_working_set_bytes{container_label_com_docker_compose_service=~"auth-service|user-service|product-service|order-service",image!=""}) > 300000000
+        expr: max by (container_label_com_docker_compose_service) (container_memory_working_set_bytes{container_label_com_docker_compose_service=~"auth-service|user-service|product-service|order-service|payment-service|notification-service",image!=""}) > 300000000
         for: 2m
         labels:
           severity: warning
@@ -128,7 +128,7 @@ groups:
           description: "{{ $labels.container_label_com_docker_compose_service }} memory working set >300MB sustained (requires cAdvisor)."
 
       - alert: AnyServiceRestartLoop
-        expr: changes(container_start_time_seconds{container_label_com_docker_compose_service=~"auth-service|user-service|product-service|order-service",image!=""}[10m]) >= 2
+        expr: changes(container_start_time_seconds{container_label_com_docker_compose_service=~"auth-service|user-service|product-service|order-service|payment-service|notification-service",image!=""}[10m]) >= 2
         for: 0m
         labels:
           severity: high

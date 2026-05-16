@@ -65,6 +65,14 @@ resource "aws_security_group" "vm" {
   }
 
   ingress {
+    description = "Frontend (8080)"
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
     description = "App (3000)"
     from_port   = 3000
     to_port     = 3000
@@ -76,6 +84,14 @@ resource "aws_security_group" "vm" {
     description = "Prometheus (9090)"
     from_port   = 9090
     to_port     = 9090
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Alertmanager (9093)"
+    from_port   = 9093
+    to_port     = 9093
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }

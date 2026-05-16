@@ -1,0 +1,27 @@
+---
+- name: Deploy app manifests to k3s Kubernetes
+  hosts: k3s_server
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Ensure repo directory exists
+      ansible.builtin.file:
+        path: "{{ repo_path }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy project to server
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../"
+        dest: "{{ repo_path }}/"
+        owner: root
+        group: root
+        mode: preserve
+
+    - name: Apply manifests (kustomize)
+      ansible.builtin.command: kubectl apply -k k8s
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      args:
+        chdir: "{{ repo_path }}"

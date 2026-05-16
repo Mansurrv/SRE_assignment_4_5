@@ -17,6 +17,8 @@ from .db import db_conn
 
 PRODUCT_SERVICE_URL = os.getenv("PRODUCT_SERVICE_URL", "http://localhost:8003")
 USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://localhost:8002")
+PAYMENT_SERVICE_URL = os.getenv("PAYMENT_SERVICE_URL", "http://localhost:8005")
+NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://localhost:8006")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me")
 JWT_ISSUER = os.getenv("JWT_ISSUER", "sre-assignment")
@@ -147,6 +149,16 @@ def ready() -> dict[str, str]:
   except Exception as exc:
     raise HTTPException(status_code=503, detail="User service not ready") from exc
 
+  try:
+    requests.get(f"{PAYMENT_SERVICE_URL}/health", timeout=2).raise_for_status()
+  except Exception as exc:
+    raise HTTPException(status_code=503, detail="Payment service not ready") from exc
+
+  try:
+    requests.get(f"{NOTIFICATION_SERVICE_URL}/health", timeout=2).raise_for_status()
+  except Exception as exc:
+    raise HTTPException(status_code=503, detail="Notification service not ready") from exc
+
   return {"status": "ready"}
 
 
@@ -260,6 +272,19 @@ def create_order(
   order_id = f"ord_{int(time.time() * 1000)}"
   created_at_ms = int(time.time() * 1000)
 
+  # Payment step (pre-commit): if this fails, we fail the request and avoid creating an order.
+  try:
+    pay_resp = requests.post(
+      f"{PAYMENT_SERVICE_URL}/pay",
+      headers={"Authorization": f"Bearer {token}"},
+      json={"order_id": order_id, "user_id": req.user_id, "amount_cents": total},
+      timeout=5,
+    )
+  except requests.RequestException as exc:
+    raise HTTPException(status_code=502, detail="Payment service unreachable") from exc
+  if pay_resp.status_code != 200:
+    raise HTTPException(status_code=502, detail=f"Payment failed ({pay_resp.status_code})")
+
   with db_conn() as conn, conn.cursor() as cur:
     cur.execute(
       "INSERT INTO orders (id, user_email, total_cents) VALUES (%s, %s, %s)",
@@ -271,6 +296,21 @@ def create_order(
         (order_id, item.product_id, item.quantity, item.unit_price_cents),
       )
     conn.commit()
+
+  # Notification is best-effort: order is already committed.
+  try:
+    requests.post(
+      f"{NOTIFICATION_SERVICE_URL}/notify",
+      headers={"Authorization": f"Bearer {token}"},
+      json={
+        "user_id": req.user_id,
+        "order_id": order_id,
+        "message": f"Your order {order_id} has been created. Total ${(total/100):.2f}.",
+      },
+      timeout=3,
+    )
+  except Exception:
+    pass
 
   return OrderOut(
     id=order_id,

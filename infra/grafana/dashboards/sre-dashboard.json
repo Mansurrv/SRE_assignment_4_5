@@ -10,19 +10,28 @@
     {
       "id": 1,
       "type": "timeseries",
-      "title": "Order Service 5xx (req/s)",
+      "title": "Availability (success/total) by service",
       "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(http_requests_total{service=\"order-service\",status=~\"5..\"}[5m])) or vector(0)",
-          "legendFormat": "5xx"
+          "expr": "sum by (service) (rate(http_requests_total{status=~\"2..|3..\"}[5m])) / sum by (service) (rate(http_requests_total[5m]))",
+          "legendFormat": "{{service}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
-          "min": 0
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.999 },
+              { "color": "green", "value": 0.9999 }
+            ]
+          }
         },
         "overrides": []
       },
@@ -33,19 +42,28 @@
     {
       "id": 2,
       "type": "timeseries",
-      "title": "Orders created (2xx, req/s)",
+      "title": "Error rate (5xx/total) by service",
       "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(http_requests_total{service=\"order-service\",method=\"POST\",path=\"/orders\",status=~\"2..\"}[5m])) or vector(0)",
-          "legendFormat": "POST /orders 2xx"
+          "expr": "sum by (service) (rate(http_requests_total{status=~\"5..\"}[5m])) / sum by (service) (rate(http_requests_total[5m]))",
+          "legendFormat": "{{service}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
-          "min": 0
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.005 },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
         },
         "overrides": []
       },
@@ -56,18 +74,49 @@
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Order Service latency p95 (seconds)",
-      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "title": "Latency p95 (POST /orders, seconds)",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{service=\"order-service\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{service=\"order-service\",method=\"POST\",path=\"/orders\"}[5m])))",
           "legendFormat": "p95"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "s",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.3 },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Throughput (RPS) by service",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service) (rate(http_requests_total[1m]))",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
           "min": 0
         },
         "overrides": []

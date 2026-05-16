@@ -1,0 +1,10 @@
+repo_path: /opt/sre-app
+frontend_host_path: /opt/sre-frontend
+repo_git_url: ""
+
+# Compose UI port on the VM
+frontend_port: 8080
+
+# Shared secrets (change for production)
+jwt_secret: dev-secret-change-me
+jwt_issuer: sre-assignment

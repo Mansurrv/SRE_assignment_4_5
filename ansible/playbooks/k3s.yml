@@ -1,0 +1,62 @@
+---
+- name: Install k3s server
+  hosts: k3s_server
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Install k3s (server)
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | sh -
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Read k3s node token
+      ansible.builtin.slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_node_token
+
+    - name: Set join facts
+      ansible.builtin.set_fact:
+        k3s_token_plain: "{{ k3s_node_token.content | b64decode | trim }}"
+        k3s_url: "https://{{ hostvars[inventory_hostname].ansible_host | default(inventory_hostname) }}:6443"
+
+    - name: Ensure frontend host path exists (for hostPath volume)
+      ansible.builtin.file:
+        path: "{{ frontend_host_path }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy frontend files to hostPath
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../frontend/"
+        dest: "{{ frontend_host_path }}/"
+        owner: root
+        group: root
+        mode: "0644"
+
+- name: Install k3s agents
+  hosts: k3s_agents
+  become: true
+  vars_files:
+    - ../group_vars/all.yml
+  tasks:
+    - name: Install k3s (agent)
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | K3S_URL={{ hostvars[groups['k3s_server'][0]].k3s_url }} K3S_TOKEN={{ hostvars[groups['k3s_server'][0]].k3s_token_plain }} sh -
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Ensure frontend host path exists (for hostPath volume)
+      ansible.builtin.file:
+        path: "{{ frontend_host_path }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy frontend files to hostPath
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../frontend/"
+        dest: "{{ frontend_host_path }}/"
+        owner: root
+        group: root
+        mode: "0644"

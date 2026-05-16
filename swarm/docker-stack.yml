@@ -1,0 +1,186 @@
+version: "3.9"
+
+configs:
+  nginx_conf:
+    file: ../infra/nginx/nginx.conf
+  postgres_init_sql:
+    file: ../infra/postgres/init.sql
+  prometheus_yml:
+    file: ../infra/prometheus/prometheus.yml
+  prometheus_alerts_yml:
+    file: ../infra/prometheus/alerts.yml
+  alertmanager_yml:
+    file: ../infra/alertmanager/alertmanager.yml
+
+volumes:
+  postgres_data: {}
+
+networks:
+  app_net:
+    driver: overlay
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    configs:
+      - source: postgres_init_sql
+        target: /docker-entrypoint-initdb.d/init.sql
+        mode: 0444
+    networks: [app_net]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  auth-service:
+    image: sre/auth-service:latest
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/app
+      JWT_SECRET: dev-secret-change-me
+      JWT_ISSUER: sre-assignment
+      ACCESS_TOKEN_EXPIRE_MINUTES: "120"
+    networks: [app_net]
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  user-service:
+    image: sre/user-service:latest
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/app
+      JWT_SECRET: dev-secret-change-me
+      JWT_ISSUER: sre-assignment
+    networks: [app_net]
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  product-service:
+    image: sre/product-service:latest
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/app
+      JWT_SECRET: dev-secret-change-me
+      JWT_ISSUER: sre-assignment
+    networks: [app_net]
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  payment-service:
+    image: sre/payment-service:latest
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/app
+      JWT_SECRET: dev-secret-change-me
+      JWT_ISSUER: sre-assignment
+      PAYMENT_FAIL_RATE: "0.0"
+      PAYMENT_LATENCY_MS: "30"
+    networks: [app_net]
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  notification-service:
+    image: sre/notification-service:latest
+    environment:
+      JWT_SECRET: dev-secret-change-me
+      JWT_ISSUER: sre-assignment
+    networks: [app_net]
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  order-service:
+    image: sre/order-service:latest
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/app
+      PRODUCT_SERVICE_URL: http://product-service:8000
+      USER_SERVICE_URL: http://user-service:8000
+      PAYMENT_SERVICE_URL: http://payment-service:8000
+      NOTIFICATION_SERVICE_URL: http://notification-service:8000
+      JWT_SECRET: dev-secret-change-me
+      JWT_ISSUER: sre-assignment
+    networks: [app_net]
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+
+  frontend:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    configs:
+      - source: nginx_conf
+        target: /etc/nginx/conf.d/default.conf
+        mode: 0444
+    volumes:
+      - ../frontend:/usr/share/nginx/html:ro
+    networks: [app_net]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    ports:
+      - "9090:9090"
+    configs:
+      - source: prometheus_yml
+        target: /etc/prometheus/prometheus.yml
+        mode: 0444
+      - source: prometheus_alerts_yml
+        target: /etc/prometheus/alerts.yml
+        mode: 0444
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    networks: [app_net]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.0
+    ports:
+      - "9093:9093"
+    configs:
+      - source: alertmanager_yml
+        target: /etc/alertmanager/alertmanager.yml
+        mode: 0444
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    networks: [app_net]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../infra/grafana/dashboards:/etc/grafana/dashboards:ro
+    networks: [app_net]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+

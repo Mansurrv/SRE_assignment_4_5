@@ -76,6 +76,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://app:app@postgres:5432/app}
       PRODUCT_SERVICE_URL: ${PRODUCT_SERVICE_URL:-http://product-service:8000}
       USER_SERVICE_URL: ${USER_SERVICE_URL:-http://user-service:8000}
+      PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL:-http://payment-service:8000}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL:-http://notification-service:8000}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       JWT_ISSUER: ${JWT_ISSUER:-sre-assignment}
     depends_on:
@@ -85,8 +87,46 @@ services:
         condition: service_healthy
       user-service:
         condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
     ports:
       - "8004:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready').read()\""]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  payment-service:
+    build: ./services/payment
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://app:app@postgres:5432/app}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_ISSUER: ${JWT_ISSUER:-sre-assignment}
+      PAYMENT_FAIL_RATE: ${PAYMENT_FAIL_RATE:-0.0}
+      PAYMENT_LATENCY_MS: ${PAYMENT_LATENCY_MS:-30}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8005:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready').read()\""]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  notification-service:
+    build: ./services/notification
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_ISSUER: ${JWT_ISSUER:-sre-assignment}
+    ports:
+      - "8006:8000"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready').read()\""]
       interval: 5s
@@ -107,6 +147,10 @@ services:
       user-service:
         condition: service_healthy
       product-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      notification-service:
         condition: service_healthy
       order-service:
         condition: service_healthy
@@ -133,6 +177,10 @@ services:
         condition: service_healthy
       product-service:
         condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
       order-service:
         condition: service_healthy
     healthcheck:
@@ -146,7 +194,7 @@ services:
     restart: unless-stopped
     profiles: ["capacity"]
     ports:
-      - "8081:8080"
+      - "${CADVISOR_PORT:-8081}:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
