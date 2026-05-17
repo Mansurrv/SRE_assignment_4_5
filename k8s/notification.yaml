@@ -15,6 +15,7 @@ spec:
       containers:
         - name: notification-service
           image: sre/notification-service:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
@@ -40,4 +41,3 @@ spec:
     - name: http
       port: 8000
       targetPort: 8000
-

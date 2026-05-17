@@ -15,6 +15,7 @@ spec:
       containers:
         - name: user-service
           image: sre/user-service:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
@@ -42,4 +43,3 @@ spec:
     - name: http
       port: 8000
       targetPort: 8000
-
