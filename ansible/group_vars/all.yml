@@ -1,6 +1,6 @@
 repo_path: /opt/sre-app
 frontend_host_path: /opt/sre-frontend
-repo_git_url: ""
+repo_git_url: "https://github.com/Mansurrv/SRE_assignment_6.git"
 
 # Compose UI port on the VM
 frontend_port: 8080

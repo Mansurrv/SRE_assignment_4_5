@@ -53,6 +53,25 @@
         name: git
         state: present
 
+    - name: Check if repo path is already a git repo
+      when: repo_git_url | length > 0
+      ansible.builtin.stat:
+        path: "{{ repo_path }}/.git"
+      register: repo_git_dir
+
+    - name: Remove existing non-git directory at repo_path (to allow git clone)
+      when: (repo_git_url | length > 0) and (not repo_git_dir.stat.exists)
+      ansible.builtin.file:
+        path: "{{ repo_path }}"
+        state: absent
+
+    - name: Ensure repo directory exists (after cleanup)
+      when: repo_git_url | length > 0
+      ansible.builtin.file:
+        path: "{{ repo_path }}"
+        state: directory
+        mode: "0755"
+
     - name: Deploy code from Git (recommended)
       when: repo_git_url | length > 0
       ansible.builtin.git:
@@ -93,6 +112,9 @@
 
           PAYMENT_FAIL_RATE=0.0
           PAYMENT_LATENCY_MS=30
+
+          # Allow using dev secrets for demo environments.
+          ALLOW_DEV_SECRETS=1
 
     - name: Validate env
       ansible.builtin.command: python3 scripts/validate_env.py
