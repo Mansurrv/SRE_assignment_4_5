@@ -114,6 +114,10 @@ def _ensure_schema() -> None:
 def health() -> dict[str, str]:
   return {"status": "ok"}
 
+@app.get("/healthz")
+def healthz() -> dict[str, str]:
+  return health()
+
 @app.get("/ready")
 def ready() -> dict[str, str]:
   try:

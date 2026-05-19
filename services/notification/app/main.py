@@ -86,6 +86,10 @@ def metrics() -> Response:
 def health() -> dict[str, str]:
   return {"status": "ok"}
 
+@app.get("/healthz")
+def healthz() -> dict[str, str]:
+  return health()
+
 
 @app.get("/ready")
 def ready() -> dict[str, str]:
@@ -120,4 +124,3 @@ def list_notifications(identity: Annotated[tuple[str, str], Depends(require_subj
   if role != "florist":
     raise HTTPException(status_code=403, detail="Florist role required")
   return _notifications
-
