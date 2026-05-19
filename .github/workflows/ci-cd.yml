@@ -73,8 +73,10 @@ jobs:
       # Run pytest only if the repository contains any tests.
       - name: Pytest (if tests exist)
         run: |
-          if ls -1 **/test_*.py **/*_test.py 2>/dev/null | head -n 1 >/dev/null; then
-            pytest -q
+          # Note: pytest exits with code 5 when no tests are collected.
+          # Treat "no tests collected" as success so CI stays green until tests are added.
+          if find . -type f \( -name 'test_*.py' -o -name '*_test.py' \) | head -n 1 >/dev/null; then
+            pytest -q || test "$?" -eq 5
           else
             echo "No tests found (skipping pytest)."
           fi
